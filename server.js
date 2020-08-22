@@ -5,6 +5,7 @@ const User = require('./models/User');
 const Room = require('./models/Room');
 const mongoose = require('mongoose');
 const { generateKeyPair } = require('crypto');
+const { update } = require('./models/User');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,45 +15,23 @@ const MongoURI = 'mongodb+srv://andrew:ax021009@cluster0.wbg0q.mongodb.net/Clust
 mongoose
     .connect(MongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
     .then(() => {
-        console.log("MongoDB Connected...")
+        console.log("MongoDB Connected...");
     })
     .catch((err) => console.log(err));
 
-Room.findById('1', function(error, room) {
-    if (room.submissions == room.users.length) {
-        var userList = room.users;
-        for (let i=0; i<userList.length; i++){
-        }
-        for (let i=userList.length-1; i>0; i--){
-            const j = Math.floor(Math.random() * i);
-            [userList[i], userList[j]] = [userList[j], userList[i]];
-        }
-        console.log(userList);
-        User.findById(userList[0], function(error, user) {
-            if (error) {
-                console.log(error);
-            }
-            let text0 = user.text;
-            console.log(text0);
-            for (let i=0; i<userList.length-1; i++){
-                User.findById(userList[i+1], function(error, user) {
-                    console.log("found next");
-                    User.update(
-                        { _id: userList[i] },
-                        { text: user.text },
-                        function(err, success) {
-                            
-                        }
-                    );
-                });
-            }
-            User.update(
-                { _id: userList[userList.length-1] },
-                {text: text0}
-            );
-        });
-    }
-});
+/*const room = new Room({
+    _id: '1',
+    users: ['1', '2', '3'],
+    leader: '1',
+    submissions: 3,
+})
+
+room.save();
+
+const u1 = new User({ _id: '1', text: '1' });
+const u2 = new User({ _id: '2', text: '2' });
+const u3 = new User({ _id: '3', text: '3' });
+u1.save(); u2.save(); u3.save();*/
 
 io.on('connection', socket => {
 
@@ -68,7 +47,7 @@ io.on('connection', socket => {
         });
         newRoom.save();
         socket.join(roomId);
-        socket.emit(roomId);
+        socket.emit('sendId', roomId);
     });
 
     socket.on('joinRoom', (userId, roomId) => {
@@ -103,13 +82,43 @@ io.on('connection', socket => {
                     function (error, success) {
                         Room.findById(roomId, function(error, room) {
                             if (room.submissions == room.users.length) {
-                                
+                                var userList = room.users;
+                                for (let i=userList.length-1; i>0; i--){
+                                    const j = Math.floor(Math.random() * i);
+                                    [userList[i], userList[j]] = [userList[j], userList[i]];
+                                }
+                                User.findById(userList[0], function(error, user) {
+                                    let text0 = user.text;
+                                    let textList = [];
+                                    for (let i=0; i<userList.length-1; i++){
+                                        User.findById(userList[i+1], function(error, user) {
+                                            textList.push(user.text);
+                                            if (i==userList.length-2) {
+                                                textList.push(text0);
+                                                for (let j=0; j<userList.length; j++){
+                                                    User.findByIdAndUpdate(userList[j], { text: textList[j]}, function(err, success) {
+                                                        if (j==userList.length-1) {
+                                                            io.to(roomId).emit('finishedCollecting');
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
                             }
                         });
+                        
                     }
                 )
             }
         );
+    });
+
+    socket.on('getText', (userId, callBack) => {
+        User.findById(userId, function(error, user) {
+            callBack(user.text);
+        })
     });
 
 });
