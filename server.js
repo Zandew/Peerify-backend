@@ -111,13 +111,14 @@ io.on('connection', socket => {
     });
 
     socket.on('evaluationStage', roomId => {//leader call
+        console.log("EVAL STAGE");
         setTimeout(() => {
             io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
         }, 5000);
     });
 
     socket.on('sendEvaluation', (userId, roomId, text, rating) => {
-        const writer = Rooms[roomId].user_evaluations[Users[userId].index].userId;
+        const writer = Rooms[roomId].user_evaluation[Users[userId].index].userId;
         Rooms[roomId].user_feedback[Users[writer].index] = {
             text,
             rating
