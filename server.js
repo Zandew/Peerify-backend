@@ -135,8 +135,13 @@ io.on('connection', socket => {
 
     socket.on('feedbackStage', roomId => {
         setTimeout(() => {
-            Rooms[roomId].leader = (Rooms[roomId].leader+1)%Rooms[roomId].userList.length;
-            io.to(roomId).emit('finishEvaluation', Rooms[roomId].leader);//tells everyone round is over and new leader is selected, leader calls emit('promptStage', (roomId))
+            Rooms[roomId].rounds_done += 1;
+            if (Rooms[roomId].rounds_done == Rooms[roomId].rounds){
+                io.to(roomId).emit('gameOver'); //game over
+            }else {
+                Rooms[roomId].leader = (Rooms[roomId].leader+1)%Rooms[roomId].userList.length;
+                io.to(roomId).emit('finishEvaluation', Rooms[roomId].leader);//tells everyone round is over and new leader is selected, leader calls emit('promptStage', (roomId))
+            }
         }, 5000);
     });
 });
