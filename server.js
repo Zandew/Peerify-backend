@@ -1,126 +1,132 @@
 const http = require('http');
 const express = require('express');
 const socketio = require('socket.io');
-const User = require('./models/User');
-const Room = require('./models/Room');
-const mongoose = require('mongoose');
 const { generateKeyPair } = require('crypto');
-const { update } = require('./models/User');
+const { callbackify } = require('util');
+const { Users, Rooms } = require('./db.js');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
-const MongoURI = 'mongodb+srv://andrew:ax021009@cluster0.wbg0q.mongodb.net/Cluster0?retryWrites=true&w=majority';
-mongoose
-    .connect(MongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => {
-        console.log("MongoDB Connected...");
-    })
-    .catch((err) => console.log(err));
-
-/*const room = new Room({
-    _id: '1',
-    users: ['1', '2', '3'],
-    leader: '1',
-    submissions: 3,
-})
-
-room.save();
-
-const u1 = new User({ _id: '1', text: '1' });
-const u2 = new User({ _id: '2', text: '2' });
-const u3 = new User({ _id: '3', text: '3' });
-u1.save(); u2.save(); u3.save();*/
-
 io.on('connection', socket => {
 
     socket.emit('createId', makeid(10));
 
-    socket.on('createRoom', userId => {
+    socket.on('createRoom', (userId, rounds) => {
+        console.log("CREATE ROOM "+userId+" "+rounds);
         const roomId = makeid(6);
-        const newRoom = new Room({
-            id: roomId,
+        Rooms[roomId] = {
             users: [userId],
             leader: userId,
-            submissions: 0
-        });
-        newRoom.save();
+            users_ready: 0,
+            
+            total_rounds: rounds,
+            rounds_done: 0,
+
+            prompt: null,
+            user_entries: [null],
+            user_evaluation: [{
+                text: null,
+                userId
+            }],
+            user_feedback: [{
+                text: null,
+                rating: null
+            }],
+
+            scores: [0]
+        }
+        Users[userId] = {
+            index: 0
+        }
         socket.join(roomId);
-        socket.emit('sendId', roomId);
+        socket.emit('sendRoomId', roomId);
     });
 
     socket.on('joinRoom', (userId, roomId) => {
-        Room.update(
-            { _id: roomId},
-            { $push: { users: userId }},
-            function (error, success) {
-                if (error) {
-                    console.log(error);
-                } else {
-                    console.log("joined room");
-                }
-            }
-        );
+        Users[userId] = {
+            index: Rooms[roomId].users.length
+        }
+        Rooms[roomId].users.push(userId);
+        Rooms[roomId].user_entries.push(null);
+        Rooms[roomId].user_evaluation.push(null);
+        Rooms[roomId].user_feedback.push({ text: null, rating: null });
+        Rooms[roomId].scores.push(0);
+        socket.join(roomId);
     });
 
-    socket.on('startTimer', (roomId) => {
+    socket.on('startGame', (roomId) => { //emitted when leader clicks start game button
+        io.to(roomId).emit('start', Rooms[userId].leader); //tells everyone game has started and who is leader 
+    });
+
+    socket.on('promptStage', (roomId) => { //emitted by leader when page loads
         setTimeout(() => {
-            io.to(roomId).emit('collectResults');
+            io.to(roomId).emit('finishPrompt'); //tells everyone prompt writing time is finished, leader replies with emit('writingStage', prompt)
+        }, 5000);
+    });
+
+    socket.on('writingStage', (roomId, prompt) => {
+        Rooms[roomId].prompt = prompt;
+        io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
+        setTimeout(() => {
+            io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
         }, 5000);
     });
 
     socket.on('sendText', (userId, roomId, text) => {
-        User.update(
-            { _id: userId },
-            { text },
-            function(error, success) {
-                console.log("received text");
-                Room.update(
-                    { _id : roomId },
-                    { $inc : {submissions: 1} },
-                    function (error, success) {
-                        Room.findById(roomId, function(error, room) {
-                            if (room.submissions == room.users.length) {
-                                var userList = room.users;
-                                for (let i=userList.length-1; i>0; i--){
-                                    const j = Math.floor(Math.random() * i);
-                                    [userList[i], userList[j]] = [userList[j], userList[i]];
-                                }
-                                User.findById(userList[0], function(error, user) {
-                                    let text0 = user.text;
-                                    let textList = [];
-                                    for (let i=0; i<userList.length-1; i++){
-                                        User.findById(userList[i+1], function(error, user) {
-                                            textList.push(user.text);
-                                            if (i==userList.length-2) {
-                                                textList.push(text0);
-                                                for (let j=0; j<userList.length; j++){
-                                                    User.findByIdAndUpdate(userList[j], { text: textList[j]}, function(err, success) {
-                                                        if (j==userList.length-1) {
-                                                            io.to(roomId).emit('finishedCollecting');
-                                                        }
-                                                    });
-                                                }
-                                            }
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                        
-                    }
-                )
+        const idx = Users[userId].index;
+        Rooms[roomId].user_entries[idx] = text;
+        Rooms[roomId].users_ready += 1;
+        if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+            var userList = Rooms[roomId].users;
+            var entryList = Rooms[roomId].entries;
+            for (let i=userList.length-1; i>0; i--){
+                const j = Math.floor(Math.random() * i);
+                [userList[i], userList[j]] = [userList[j], userList[i]];
+                [entryList[i], entryList[j]] = [entryList[j], entryList[i]];
             }
-        );
+            let entry0 = entryList[0];
+            entryList.shift();
+            entryList.push(entry0);
+            for (let i=0; i<userList.length; i++){
+                Rooms[roomId].user_evaluation[Users[userId].index] = {
+                    text: entryList[i],
+                    userId: userList[(i+1)%userList.length]
+                }
+            }
+            Rooms[roomId].users_ready = 0; 
+            io.to(roomId).emit('allSubmitted'); //tells everyone their entries have been shuffled and ready to retrieve
+        }
     });
 
-    socket.on('getText', (userId, callBack) => {
-        User.findById(userId, function(error, user) {
-            callBack(user.text);
-        })
+    socket.on('getEvaluation', (userId, roomId) => { //everyone emits this to get the entry that they will evaluate
+        socket.emit('evaluation', Rooms[roomId].user_evaluation[Users[userId].index]); //after getting entry leader replies with emit('evaluationStage', roomId)
     });
 
+    socket.on('evaluationStage', roomId => {//leader call
+        setTimeout(() => {
+            io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
+        }, 5000);
+    });
+
+    socket.on('sendEvaluation', (userId, roomId, text, rating) => {
+        const writer = Rooms[roomId].user_evaluations[Users[userId].index].userId;
+        Rooms[roomId].user_feedback[Users[writer].index] = {
+            text,
+            rating
+        }
+        Rooms[roomId].scores[Users[writer].index] += rating;
+        Rooms[roomId].users_ready += 1;
+        if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+            io.to(roomId).emit('allEvaluated'); //tells everyone that all feedback has been given and to get it using emit('feedbackStage', roomId) 
+        }
+    });
+
+
+    socket.on('feedbackStage', roomId => {
+        
+    });
 });
 
 function makeid(length) {
