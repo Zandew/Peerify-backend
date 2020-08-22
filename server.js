@@ -50,23 +50,26 @@ io.on('connection', socket => {
         }
         Rooms[roomId].users.push(userId);
         Rooms[roomId].user_entries.push(null);
-        Rooms[roomId].user_evaluation.push(null);
+        Rooms[roomId].user_evaluation.push({text: null, userId });
         Rooms[roomId].user_feedback.push({ text: null, rating: null });
         Rooms[roomId].scores.push(0);
         socket.join(roomId);
     });
 
     socket.on('startGame', (roomId) => { //emitted when leader clicks start game button
-        io.to(roomId).emit('start', Rooms[userId].leader); //tells everyone game has started and who is leader 
+        console.log("START GAME "+roomId);
+        io.to(roomId).emit('start', Rooms[roomId].leader); //tells everyone game has started and who is leader 
     });
 
     socket.on('promptStage', (roomId) => { //emitted by leader when page loads
+        console.log("PROMPT STAGE");
         setTimeout(() => {
             io.to(roomId).emit('finishPrompt'); //tells everyone prompt writing time is finished, leader replies with emit('writingStage', prompt)
         }, 5000);
     });
 
     socket.on('writingStage', (roomId, prompt) => {
+        console.log("WRITING STAGE");
         Rooms[roomId].prompt = prompt;
         io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
         setTimeout(() => {
@@ -75,12 +78,13 @@ io.on('connection', socket => {
     });
 
     socket.on('sendText', (userId, roomId, text) => {
+        console.log("GOT TEXT "+userId+" "+roomId+" "+text);
         const idx = Users[userId].index;
         Rooms[roomId].user_entries[idx] = text;
         Rooms[roomId].users_ready += 1;
         if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
             var userList = Rooms[roomId].users;
-            var entryList = Rooms[roomId].entries;
+            var entryList = Rooms[roomId].user_entries;
             for (let i=userList.length-1; i>0; i--){
                 const j = Math.floor(Math.random() * i);
                 [userList[i], userList[j]] = [userList[j], userList[i]];
@@ -97,10 +101,12 @@ io.on('connection', socket => {
             }
             Rooms[roomId].users_ready = 0; 
             io.to(roomId).emit('allSubmitted'); //tells everyone their entries have been shuffled and ready to retrieve
+            console.log("READY FOR EVAL");
         }
     });
 
     socket.on('getEvaluation', (userId, roomId) => { //everyone emits this to get the entry that they will evaluate
+        console.log("GOT EVAL");
         socket.emit('evaluation', Rooms[roomId].user_evaluation[Users[userId].index]); //after getting entry leader replies with emit('evaluationStage', roomId)
     });
 
@@ -139,7 +145,7 @@ io.on('connection', socket => {
             if (Rooms[roomId].rounds_done == Rooms[roomId].rounds){
                 io.to(roomId).emit('gameOver'); //game over
             }else {
-                Rooms[roomId].leader = (Rooms[roomId].leader+1)%Rooms[roomId].userList.length;
+                Rooms[roomId].leader = Rooms[roomId].userList[Math.floor(Math.random() * Rooms[roomId].userList.length)];
                 io.to(roomId).emit('finishEvaluation', Rooms[roomId].leader);//tells everyone round is over and new leader is selected, leader calls emit('promptStage', (roomId))
             }
         }, 5000);
