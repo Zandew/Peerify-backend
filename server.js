@@ -119,13 +119,25 @@ io.on('connection', socket => {
         Rooms[roomId].scores[Users[writer].index] += rating;
         Rooms[roomId].users_ready += 1;
         if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
-            io.to(roomId).emit('allEvaluated'); //tells everyone that all feedback has been given and to get it using emit('feedbackStage', roomId) 
+            /*tells everyone that all feedback has been given and to get it using emit('getFeedback', {...}) 
+            and total score emit('getScore', {...}), leader replies emit('feedbackStage', roomId)*/
+            io.to(roomId).emit('allEvaluated'); 
         }
     });
 
+    socket.on('getFeedback', (userId, roomId) => {
+        io.to(roomId).emit('feedback', Rooms[roomId].user_feedback[Users[userId].index]);//sends user's feedback
+    });
+
+    socket.on('getScore', (userId, roomId) => {
+        io.to(roomId).emit('score', Rooms[roomId].scores[Users[userId].index]);//sends users score
+    });
 
     socket.on('feedbackStage', roomId => {
-        
+        setTimeout(() => {
+            Rooms[roomId].leader = (Rooms[roomId].leader+1)%Rooms[roomId].userList.length;
+            io.to(roomId).emit('finishEvaluation', Rooms[roomId].leader);//tells everyone round is over and new leader is selected, leader calls emit('promptStage', (roomId))
+        }, 5000);
     });
 });
 
