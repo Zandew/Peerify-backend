@@ -187,9 +187,9 @@ io.on('connection', socket => {
                 io.to(roomId).emit('gameOver'); //game over
             }else {
                 Rooms[roomId].leader = Rooms[roomId].users[Math.floor(Math.random() * Rooms[roomId].users.length)];
-                io.to(roomId).emit('finishFeedback');
+                io.to(roomId).emit('finishFeedback', Rooms[roomId].leader);
             }
-        }, 20000);
+        }, 5000);
     });
 });
 
