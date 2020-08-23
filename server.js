@@ -60,6 +60,10 @@ io.on('connection', socket => {
         Rooms[roomId][userId] = nickname;
     });
 
+    socket.on('getRoomList', roomId => {
+        socket.emit('roomList', Rooms[roomId].user_nicknames);
+    });
+
     socket.on('joinRoom', (userId, roomId) => {
         if(!roomExists(roomId, Rooms)){
             socket.emit('joinStatus', 'FAILED');
