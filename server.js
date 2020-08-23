@@ -105,24 +105,11 @@ io.on('connection', socket => {
         }
     });
 
-    socket.on('promptStage', (roomId) => { //emitted by leader when page loads
-        console.log("PROMPT STAGE");
-        if(Rooms[roomId] != undefined){
-            setTimeout(() => {
-                io.to(roomId).emit('finishPrompt'); //tells everyone prompt writing time is finished, leader replies with emit('writingStage', prompt)
-            }, 5000000);
-        }
-    });
-
     socket.on('writingStage', (roomId, prompt) => {
         console.log("WRITING STAGE");
         if(Rooms[roomId] != undefined){
             Rooms[roomId].prompt = prompt;
             io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
-            setTimeout(() => {
-                Rooms[roomId].users_ready = 0;
-                io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
-            }, 5000000);
         }
     });
 
@@ -165,16 +152,6 @@ io.on('connection', socket => {
         }
     });
 
-    socket.on('evaluationStage', roomId => {//leader call
-        console.log("EVAL STAGE");
-        if(Rooms[roomId] != undefined){
-            setTimeout(() => {
-                Rooms[roomId].users_ready = 0;
-                io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
-            }, 5000000);
-        }
-    });
-
     socket.on('sendEvaluation', (userId, roomId, text, rating) => {
         if(Rooms[roomId] != undefined){
             const writer = Rooms[roomId].user_evaluation[Users[userId].index].userId;
@@ -209,14 +186,6 @@ io.on('connection', socket => {
         }
     });
 
-    socket.on('feedbackStage', roomId => {
-        if(Rooms[roomId] != undefined){
-            setTimeout(() => {
-                Rooms[roomId].users_ready = 0;
-                io.to(roomId).emit('finishFeedback');
-            }, 5000000);
-        }
-    });
 
     socket.on('doneWithFeedback', (roomId) => {
         if (Rooms[roomId] != undefined) {
@@ -237,16 +206,6 @@ io.on('connection', socket => {
                 console.log("EVERYONE DONE WITH SCOREBOARD");
                 io.to(roomId).emit('scoreboardStageOver');
             }
-        }
-    });
-
-    socket.on('scoreboardStage', roomId => {
-        if (Rooms[roomId] != undefined) {
-            setTimeout(() => {
-                console.log("SCOREBOARD OVER");
-                Rooms[roomId].users_ready = 0;
-                io.to(roomId).emit('scoreboardStageOver');
-            }, 200000);
         }
     });
 
