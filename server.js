@@ -229,12 +229,24 @@ io.on('connection', socket => {
         }
     });
 
+    socket.on('doneScoreboard', roomId => {
+        if (Rooms[roomId] != undefined) {
+            Rooms[roomId].users_ready += 1;
+            if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+                Rooms[roomId].users_ready = 0;
+                console.log("EVERYONE DONE WITH SCOREBOARD");
+                io.to(roomId).emit('scoreboardStageOver');
+            }
+        }
+    });
+
     socket.on('scoreboardStage', roomId => {
         if (Rooms[roomId] != undefined) {
             setTimeout(() => {
                 console.log("SCOREBOARD OVER");
+                Rooms[roomId].users_ready = 0;
                 io.to(roomId).emit('scoreboardStageOver');
-            }, 5000);
+            }, 200000);
         }
     });
 
@@ -278,6 +290,17 @@ io.on('connection', socket => {
                 io.to(roomId).emit('results', results.slice(0, 5));
             }
         }
+    });
+
+    socket.on('getEntries', roomId => {
+        let array = [];
+        for (let i=0; i<Rooms[roomId].users.length; i++){
+            array.push({
+                name: Rooms[roomId].user_nicknames[Rooms[roomId].users[i]],
+                text: Rooms[roomId].user_entries[i]
+            })
+        }
+        io.to(roomId).emit('entries', array);
     });
 });
 
