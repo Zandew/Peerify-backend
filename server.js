@@ -113,7 +113,8 @@ io.on('connection', socket => {
 
     socket.on('getEvaluation', (userId, roomId) => { //everyone emits this to get the entry that they will evaluate
         console.log("GOT EVAL");
-        socket.emit('evaluation', Rooms[roomId].user_evaluation[Users[userId].index]); //after getting entry leader replies with emit('evaluationStage', roomId)
+        console.log(Rooms[roomId]);
+        socket.emit('evaluation', Rooms[roomId].user_evaluation[Users[userId].index].text); //after getting entry leader replies with emit('evaluationStage', roomId)
     });
 
     socket.on('evaluationStage', roomId => {//leader call
@@ -164,6 +165,7 @@ io.on('connection', socket => {
             if (Rooms[roomId].rounds_done == Rooms[roomId].rounds){
                 io.to(roomId).emit('gameOver'); //game over
             }else {
+                Rooms[roomId].leader = Rooms[roomId].users[Math.floor(Math.random() * Rooms[roomId].users.length)];
                 io.to(roomId).emit('finishFeedback');
             }
         }, 20000);
