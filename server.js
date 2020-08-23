@@ -42,18 +42,24 @@ io.on('connection', socket => {
         }
         socket.join(roomId);
         socket.emit('sendRoomId', roomId);
+        socket.emit('updateList', Rooms[roomId].users);
     });
 
     socket.on('joinRoom', (userId, roomId) => {
-        Users[userId] = {
-            index: Rooms[roomId].users.length
-        }
-        Rooms[roomId].users.push(userId);
-        Rooms[roomId].user_entries.push(null);
-        Rooms[roomId].user_evaluation.push({text: null, userId });
-        Rooms[roomId].user_feedback.push({ text: null, rating: null });
-        Rooms[roomId].scores.push(0);
-        socket.join(roomId);
+        console.log(Rooms[roomId]);
+        if (Rooms[roomId] != null && Rooms[roomId].rounds_done == 0){
+            Users[userId] = {
+                index: Rooms[roomId].users.length
+            }
+            Rooms[roomId].users.push(userId);
+            Rooms[roomId].user_entries.push(null);
+            Rooms[roomId].user_evaluation.push({text: null, userId });
+            Rooms[roomId].user_feedback.push({ text: null, rating: null });
+            Rooms[roomId].scores.push(0);
+            socket.emit('validate');
+            socket.join(roomId);
+            io.to(roomId).emit('updateList', Rooms[roomId].users);
+        }   
     });
 
     socket.on('startGame', (roomId) => { //emitted when leader clicks start game button
@@ -74,7 +80,7 @@ io.on('connection', socket => {
         io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
         setTimeout(() => {
             io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
-        }, 5000);
+        }, 20000);
     });
 
     socket.on('sendText', (userId, roomId, text) => {
@@ -114,7 +120,7 @@ io.on('connection', socket => {
         console.log("EVAL STAGE");
         setTimeout(() => {
             io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
-        }, 5000);
+        }, 20000);
     });
 
     socket.on('sendEvaluation', (userId, roomId, text, rating) => {
@@ -160,7 +166,7 @@ io.on('connection', socket => {
             }else {
                 io.to(roomId).emit('finishFeedback');
             }
-        }, 5000);
+        }, 20000);
     });
 });
 
