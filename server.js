@@ -120,6 +120,7 @@ io.on('connection', socket => {
             Rooms[roomId].prompt = prompt;
             io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
             setTimeout(() => {
+                Rooms[roomId].users_ready = 0;
                 io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
             }, 5000000);
         }
@@ -168,6 +169,7 @@ io.on('connection', socket => {
         console.log("EVAL STAGE");
         if(Rooms[roomId] != undefined){
             setTimeout(() => {
+                Rooms[roomId].users_ready = 0;
                 io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
             }, 5000000);
         }
@@ -185,10 +187,10 @@ io.on('connection', socket => {
             Rooms[roomId].users_ready += 1;
             console.log(Rooms[roomId].users_ready + " " + Rooms[roomId].users.length);
             if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+                Rooms[roomId].users_ready = 0;
                 /*tells everyone that all feedback has been given and to get it using emit('getFeedback', {...}) 
                 and total score emit('getScore', {...}), leader replies emit('feedbackStage', roomId)*/
                 io.to(roomId).emit('allEvaluated');
-                Rooms[roomId].users_ready = 0;
             }
         }
     });
@@ -207,7 +209,36 @@ io.on('connection', socket => {
         }
     });
 
-    socket.on('sendReadyNextGame', (userId, roomId) => {
+    socket.on('feedbackStage', roomId => {
+        if(Rooms[roomId] != undefined){
+            setTimeout(() => {
+                Rooms[roomId].users_ready = 0;
+                io.to(roomId).emit('finishFeedback');
+            }, 5000000);
+        }
+    });
+
+    socket.on('doneWithFeedback', (roomId) => {
+        if (Rooms[roomId] != undefined) {
+            Rooms[roomId].users_ready += 1;
+            if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+                Rooms[roomId].users_ready = 0;
+                console.log("ALL DONE WITH FEEDBACK");
+                io.to(roomId).emit('allDoneWithFeedback');
+            }
+        }
+    });
+
+    socket.on('scoreboardStage', roomId => {
+        if (Rooms[roomId] != undefined) {
+            setTimeout(() => {
+                console.log("SCOREBOARD OVER");
+                io.to(roomId).emit('scoreboardStageOver');
+            }, 5000);
+        }
+    });
+
+    socket.on('sendReadyNextGame', (roomId) => {
         if(Rooms[roomId] != undefined){
             Rooms[roomId].users_ready += 1;
             if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
@@ -225,15 +256,7 @@ io.on('connection', socket => {
         }
     });
 
-    socket.on('feedbackStage', roomId => {
-        if(Rooms[roomId] != undefined){
-            setTimeout(() => {
-                io.to(roomId).emit('finishFeedback');
-            }, 5000000);
-        }
-    });
-
-    socket.on('getResults', roomId => {
+    socket.on('getResults', (roomId, top) => {
         if(Rooms[roomId] != undefined){
             let results = [];
             for (let i=0; i<Rooms[roomId].users.length; i++){
@@ -246,10 +269,14 @@ io.on('connection', socket => {
             if (results.length < 3) {
                 results.push({ name: "", score: 0 });
             }
-            for (let i=0; i<3; i++) {
-                console.log(results[i].score);
+            while (results.length < top) {
+                results.push({ name: "", score: 0});
             }
-            socket.emit('results', results[0].name, results[1].name, results[2].name);
+            if (top==3){
+                socket.emit('finalResults', results[0], results[1], results[2]);
+            }else {
+                io.to(roomId).emit('results', results.slice(0, 5));
+            }
         }
     });
 });
