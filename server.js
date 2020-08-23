@@ -147,7 +147,7 @@ io.on('connection', socket => {
                 io.to(roomId).emit('gameOver'); //game over
             }else {
                 Rooms[roomId].leader = Rooms[roomId].userList[Math.floor(Math.random() * Rooms[roomId].userList.length)];
-                io.to(roomId).emit('finishEvaluation', Rooms[roomId].leader);//tells everyone round is over and new leader is selected, leader calls emit('promptStage', (roomId))
+                io.to(roomId).emit('finishFeedback', Rooms[roomId].leader);//tells everyone round is over and new leader is selected, leader calls emit('promptStage', (roomId))
             }
         }, 5000);
     });
