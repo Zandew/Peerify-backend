@@ -219,9 +219,12 @@ io.on('connection', socket => {
                 score: Rooms[roomId].scores[i],
             })
         }
-        results.sort((a, b) => (a.score > b.score ? 1 : -1));
+        results.sort((a, b) => (a.score > b.score ? -1 : 1));
         if (results.length < 3) {
             results.push({ name: "", score: 0 });
+        }
+        for (let i=0; i<3; i++) {
+            console.log(results[i].score);
         }
         socket.emit('results', results[0].name, results[1].name, results[2].name);
     });
