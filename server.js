@@ -210,6 +210,21 @@ io.on('connection', socket => {
             io.to(roomId).emit('finishFeedback');
         }, 5000000);
     });
+
+    socket.on('getResults', roomId => {
+        let results = [];
+        for (let i=0; i<Rooms[roomId].users.length; i++){
+            results.push({
+                name: Rooms[roomId].user_nicknames[Rooms[roomId].users[i]],
+                score: Rooms[roomId].scores[i],
+            })
+        }
+        results.sort((a, b) => (a.score > b.score ? 1 : -1));
+        if (results.length < 3) {
+            results.push({ name: "", score: 0 });
+        }
+        socket.emit('results', results[0].name, results[1].name, results[2].name);
+    });
 });
 
 function makeid(length) {
