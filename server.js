@@ -53,6 +53,7 @@ io.on('connection', socket => {
         }
         socket.join(roomId);
         socket.emit('sendRoomId', roomId);
+        socket.emit('updateList', Rooms[roomId].users);
     });
 
     socket.on('setNickname', (userId, roomId, nickname) => {
@@ -60,7 +61,7 @@ io.on('connection', socket => {
     });
 
     socket.on('joinRoom', (userId, roomId) => {
-        if(!roomExists(roomId, ROoms)){
+        if(!roomExists(roomId, Rooms)){
             socket.emit('joinStatus', 'FAILED');
         }else{
             socket.emit('joinStatus', roomId);
@@ -74,7 +75,7 @@ io.on('connection', socket => {
             Rooms[roomId].scores.push(0);
             socket.join(roomId);
     
-            io.to.emit('playerJoined', Rooms[roomId].user_nicknames[userId]);
+            io.to(roomId).emit('playerJoined', Rooms[roomId].user_nicknames[userId]);
         }
     });
 
@@ -96,7 +97,7 @@ io.on('connection', socket => {
         io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
         setTimeout(() => {
             io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
-        }, 5000);
+        }, 20000);
     });
 
     socket.on('sendText', (userId, roomId, text) => {
@@ -136,7 +137,7 @@ io.on('connection', socket => {
         console.log("EVAL STAGE");
         setTimeout(() => {
             io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
-        }, 5000);
+        }, 20000);
     });
 
     socket.on('sendEvaluation', (userId, roomId, text, rating) => {
@@ -182,7 +183,7 @@ io.on('connection', socket => {
             }else {
                 io.to(roomId).emit('finishFeedback');
             }
-        }, 5000);
+        }, 20000);
     });
 });
 
