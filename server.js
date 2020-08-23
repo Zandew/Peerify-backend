@@ -99,134 +99,158 @@ io.on('connection', socket => {
 
     socket.on('startGame', (roomId) => { //emitted when leader clicks start game button
         console.log("START GAME "+roomId);
-        if(Rooms[roomId].users.length < 2) io.to(roomId).emit('start', "FAILED");
-        else io.to(roomId).emit('start', Rooms[roomId].leader); //tells everyone game has started and who is leader 
+        if(Rooms[roomId] != undefined){
+            if(Rooms[roomId].users.length < 2) io.to(roomId).emit('start', "FAILED");
+            else io.to(roomId).emit('start', Rooms[roomId].leader); //tells everyone game has started and who is leader 
+        }
     });
 
     socket.on('promptStage', (roomId) => { //emitted by leader when page loads
         console.log("PROMPT STAGE");
-        setTimeout(() => {
-            io.to(roomId).emit('finishPrompt'); //tells everyone prompt writing time is finished, leader replies with emit('writingStage', prompt)
-        }, 5000000);
+        if(Rooms[roomId] != undefined){
+            setTimeout(() => {
+                io.to(roomId).emit('finishPrompt'); //tells everyone prompt writing time is finished, leader replies with emit('writingStage', prompt)
+            }, 5000000);
+        }
     });
 
     socket.on('writingStage', (roomId, prompt) => {
         console.log("WRITING STAGE");
-        Rooms[roomId].prompt = prompt;
-        io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
-        setTimeout(() => {
-            io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
-        }, 5000000);
+        if(Rooms[roomId] != undefined){
+            Rooms[roomId].prompt = prompt;
+            io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
+            setTimeout(() => {
+                io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
+            }, 5000000);
+        }
     });
 
     socket.on('sendText', (userId, roomId, text) => {
-        console.log("GOT TEXT "+userId+" "+roomId+" "+text);
-        const idx = Users[userId].index;
-        Rooms[roomId].user_entries[idx] = text;
-        Rooms[roomId].users_ready += 1;
-        if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
-            var userList = JSON.parse(JSON.stringify(Rooms[roomId].users));
-            var entryList = Rooms[roomId].user_entries;
-            for (let i=userList.length-1; i>0; i--){
-                const j = Math.floor(Math.random() * i);
-                [userList[i], userList[j]] = [userList[j], userList[i]];
-                // [entryList[i], entryList[j]] = [entryList[j], entryList[i]];
-            }
-            // let entry0 = entryList[0];
-            // entryList.shift();
-            // entryList.push(entry0);
-            for (let i=0; i<userList.length; i++){
-                Rooms[roomId].user_evaluation[Users[userList[i]].index] = {
-                    text: entryList[i],
-                    userId: Rooms[roomId].users[i],
+        if(Rooms[roomId] != undefined){
+            console.log("GOT TEXT "+userId+" "+roomId+" "+text);
+            const idx = Users[userId].index;
+            Rooms[roomId].user_entries[idx] = text;
+            Rooms[roomId].users_ready += 1;
+            if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+                var userList = JSON.parse(JSON.stringify(Rooms[roomId].users));
+                var entryList = Rooms[roomId].user_entries;
+                for (let i=userList.length-1; i>0; i--){
+                    const j = Math.floor(Math.random() * i);
+                    [userList[i], userList[j]] = [userList[j], userList[i]];
+                    // [entryList[i], entryList[j]] = [entryList[j], entryList[i]];
                 }
-                console.log(userList[i] + " matched with " + Rooms[roomId].users[i]);
+                // let entry0 = entryList[0];
+                // entryList.shift();
+                // entryList.push(entry0);
+                for (let i=0; i<userList.length; i++){
+                    Rooms[roomId].user_evaluation[Users[userList[i]].index] = {
+                        text: entryList[i],
+                        userId: Rooms[roomId].users[i],
+                    }
+                    console.log(userList[i] + " matched with " + Rooms[roomId].users[i]);
+                }
+                Rooms[roomId].users_ready = 0; 
+                io.to(roomId).emit('allSubmitted'); //tells everyone their entries have been shuffled and ready to retrieve
+                console.log("READY FOR EVAL");
             }
-            Rooms[roomId].users_ready = 0; 
-            io.to(roomId).emit('allSubmitted'); //tells everyone their entries have been shuffled and ready to retrieve
-            console.log("READY FOR EVAL");
         }
     });
 
     socket.on('getEvaluation', (userId, roomId) => { //everyone emits this to get the entry that they will evaluate
         console.log("GOT EVAL");
-        console.log(Rooms[roomId]);
-        socket.emit('evaluation', Rooms[roomId].user_evaluation[Users[userId].index].text); //after getting entry leader replies with emit('evaluationStage', roomId)
+        if(Rooms[roomId] != undefined){
+            console.log(Rooms[roomId]);
+            socket.emit('evaluation', Rooms[roomId].user_evaluation[Users[userId].index].text); //after getting entry leader replies with emit('evaluationStage', roomId)
+        }
     });
 
     socket.on('evaluationStage', roomId => {//leader call
         console.log("EVAL STAGE");
-        setTimeout(() => {
-            io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
-        }, 5000000);
+        if(Rooms[roomId] != undefined){
+            setTimeout(() => {
+                io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
+            }, 5000000);
+        }
     });
 
     socket.on('sendEvaluation', (userId, roomId, text, rating) => {
-        const writer = Rooms[roomId].user_evaluation[Users[userId].index].userId;
-        console.log(Users[userId].index + " to " + Users[writer].index + ": " + text);
-        Rooms[roomId].user_feedback[Users[writer].index] = {
-            text,
-            rating
-        }
-        Rooms[roomId].scores[Users[writer].index] += rating;
-        Rooms[roomId].users_ready += 1;
-        console.log(Rooms[roomId].users_ready + " " + Rooms[roomId].users.length);
-        if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
-            /*tells everyone that all feedback has been given and to get it using emit('getFeedback', {...}) 
-            and total score emit('getScore', {...}), leader replies emit('feedbackStage', roomId)*/
-            io.to(roomId).emit('allEvaluated');
-            Rooms[roomId].users_ready = 0;
+        if(Rooms[roomId] != undefined){
+            const writer = Rooms[roomId].user_evaluation[Users[userId].index].userId;
+            console.log(Users[userId].index + " to " + Users[writer].index + ": " + text);
+            Rooms[roomId].user_feedback[Users[writer].index] = {
+                text,
+                rating
+            }
+            Rooms[roomId].scores[Users[writer].index] += rating;
+            Rooms[roomId].users_ready += 1;
+            console.log(Rooms[roomId].users_ready + " " + Rooms[roomId].users.length);
+            if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+                /*tells everyone that all feedback has been given and to get it using emit('getFeedback', {...}) 
+                and total score emit('getScore', {...}), leader replies emit('feedbackStage', roomId)*/
+                io.to(roomId).emit('allEvaluated');
+                Rooms[roomId].users_ready = 0;
+            }
         }
     });
 
     socket.on('getFeedback', (userId, roomId) => {
-        console.log(userId + " " + Users[userId].index);
-        console.log(Rooms[roomId].user_feedback);
-        socket.emit('feedback', Rooms[roomId].user_feedback[Users[userId].index]);//sends user's feedback
+        if(Rooms[roomId] != undefined){
+            console.log(userId + " " + Users[userId].index);
+            console.log(Rooms[roomId].user_feedback);
+            socket.emit('feedback', Rooms[roomId].user_feedback[Users[userId].index]);//sends user's feedback
+        }
     });
 
     socket.on('getScore', (userId, roomId) => {
-        socket.emit('score', Rooms[roomId].scores[Users[userId].index]);//sends users score
+        if(Rooms[roomId] != undefined){
+            socket.emit('score', Rooms[roomId].scores[Users[userId].index]);//sends users score
+        }
     });
 
     socket.on('sendReadyNextGame', (userId, roomId) => {
-        Rooms[roomId].users_ready += 1;
-        if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
-            // io.to(roomId).emit('play', Rooms[roomId].leader);
-            Rooms[roomId].users_ready = 0;
-            Rooms[roomId].rounds_done += 1;
-            // console.log(Rooms[roomId].rounds_done + " " + Rooms[roomId].rounds);
-            if(Rooms[roomId].rounds_done == Rooms[roomId].total_rounds){
-                io.to(roomId).emit('gameOver'); //game over
-            }else{
-                Rooms[roomId].leader = Rooms[roomId].users[Math.floor(Math.random() * Rooms[roomId].users.length)];
-                io.to(roomId).emit('allReadyNextGame', Rooms[roomId].leader);
+        if(Rooms[roomId] != undefined){
+            Rooms[roomId].users_ready += 1;
+            if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+                // io.to(roomId).emit('play', Rooms[roomId].leader);
+                Rooms[roomId].users_ready = 0;
+                Rooms[roomId].rounds_done += 1;
+                // console.log(Rooms[roomId].rounds_done + " " + Rooms[roomId].rounds);
+                if(Rooms[roomId].rounds_done == Rooms[roomId].total_rounds){
+                    io.to(roomId).emit('gameOver'); //game over
+                }else{
+                    Rooms[roomId].leader = Rooms[roomId].users[Math.floor(Math.random() * Rooms[roomId].users.length)];
+                    io.to(roomId).emit('allReadyNextGame', Rooms[roomId].leader);
+                }
             }
         }
     });
 
     socket.on('feedbackStage', roomId => {
-        setTimeout(() => {
-            io.to(roomId).emit('finishFeedback');
-        }, 5000000);
+        if(Rooms[roomId] != undefined){
+            setTimeout(() => {
+                io.to(roomId).emit('finishFeedback');
+            }, 5000000);
+        }
     });
 
     socket.on('getResults', roomId => {
-        let results = [];
-        for (let i=0; i<Rooms[roomId].users.length; i++){
-            results.push({
-                name: Rooms[roomId].user_nicknames[Rooms[roomId].users[i]],
-                score: Rooms[roomId].scores[i],
-            })
+        if(Rooms[roomId] != undefined){
+            let results = [];
+            for (let i=0; i<Rooms[roomId].users.length; i++){
+                results.push({
+                    name: Rooms[roomId].user_nicknames[Rooms[roomId].users[i]],
+                    score: Rooms[roomId].scores[i],
+                })
+            }
+            results.sort((a, b) => (a.score > b.score ? -1 : 1));
+            if (results.length < 3) {
+                results.push({ name: "", score: 0 });
+            }
+            for (let i=0; i<3; i++) {
+                console.log(results[i].score);
+            }
+            socket.emit('results', results[0].name, results[1].name, results[2].name);
         }
-        results.sort((a, b) => (a.score > b.score ? -1 : 1));
-        if (results.length < 3) {
-            results.push({ name: "", score: 0 });
-        }
-        for (let i=0; i<3; i++) {
-            console.log(results[i].score);
-        }
-        socket.emit('results', results[0].name, results[1].name, results[2].name);
     });
 });
 
