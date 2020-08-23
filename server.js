@@ -9,12 +9,27 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
+const spawn = require('child_process').spawn;
+
 function roomExists(want_room, room_list) {
     for(room in room_list) {
         if(room == want_room)
             return true;
     }
     return false;
+}
+
+function split_string(str) {
+    let ret = [];
+    let curr = "";
+    for(let i=0; i<str.length; i++){
+        if(str[i] == ' ' || str[i] == '\n'){
+            if(curr.length > 0) ret.push(curr);
+            curr = "";
+        }else curr += str[i];
+    }
+    if(curr.length > 0) ret.push(curr);
+    return ret;
 }
 
 io.on('connection', socket => {
@@ -46,6 +61,13 @@ io.on('connection', socket => {
             user_nicknames: {
                 
             },
+            positive_words: { //stores occurences
+
+            },
+            negative_words: {
+
+            },
+            process: null,
 
             scores: [0]
         }
@@ -100,8 +122,18 @@ io.on('connection', socket => {
     socket.on('startGame', (roomId) => { //emitted when leader clicks start game button
         console.log("START GAME "+roomId);
         if(Rooms[roomId] != undefined){
-            if(Rooms[roomId].users.length < 2) io.to(roomId).emit('start', "FAILED");
-            else io.to(roomId).emit('start', Rooms[roomId].leader); //tells everyone game has started and who is leader 
+            io.to(roomId).emit('start', Rooms[roomId].leader);
+            // if(Rooms[roomId].users.length < 2) io.to(roomId).emit('start', "FAILED");
+            // else io.to(roomId).emit('start', Rooms[roomId].leader); //tells everyone game has started and who is leader 
+        }
+    });
+
+    socket.on('promptStage', (roomId) => { //emitted by leader when page loads
+        console.log("PROMPT STAGE");
+        if(Rooms[roomId] != undefined){
+            setTimeout(() => {
+                io.to(roomId).emit('finishPrompt'); //tells everyone prompt writing time is finished, leader replies with emit('writingStage', prompt)
+            }, 5000000);
         }
     });
 
@@ -110,6 +142,10 @@ io.on('connection', socket => {
         if(Rooms[roomId] != undefined){
             Rooms[roomId].prompt = prompt;
             io.to(roomId).emit('prompt', prompt);//tells everyone the prompt
+            setTimeout(() => {
+                Rooms[roomId].users_ready = 0;
+                io.to(roomId).emit('finishWriting');//tells everyone writing time is over, everyone replies with emit('sendText', {...})
+            }, 5000000);
         }
     });
 
@@ -152,6 +188,16 @@ io.on('connection', socket => {
         }
     });
 
+    socket.on('evaluationStage', roomId => {//leader call
+        console.log("EVAL STAGE");
+        if(Rooms[roomId] != undefined){
+            setTimeout(() => {
+                Rooms[roomId].users_ready = 0;
+                io.to(roomId).emit('finishEvaluation');//tells everyone evaluation stage is over and everyone sends their feedback with emit('sendEvaluation', {...})
+            }, 5000000);
+        }
+    });
+
     socket.on('sendEvaluation', (userId, roomId, text, rating) => {
         if(Rooms[roomId] != undefined){
             const writer = Rooms[roomId].user_evaluation[Users[userId].index].userId;
@@ -169,6 +215,33 @@ io.on('connection', socket => {
                 and total score emit('getScore', {...}), leader replies emit('feedbackStage', roomId)*/
                 io.to(roomId).emit('allEvaluated');
             }
+
+            const pythonProcess = spawn('python3', ["../ML/main.py", text])
+            let words = [], values = [];
+            let done_word = false;
+            // console.log(pythonProcess);
+            pythonProcess.stdout.on('data', (t) => {
+                let data = t.toString();
+                let temp = split_string(data);
+                let len = temp.length/2;
+                for(let i=0; i<len; i++){
+                    words.push(temp[i]);
+                    values.push(temp[i+len]);
+                }
+                for(let i=0; i<words.length; i++){
+                    if(values[i] == "1"){
+                        if(Rooms[roomId].negative_words[words[i]] == undefined)
+                            Rooms[roomId].negative_words[words[i]] = 0;
+                        Rooms[roomId].negative_words[words[i]] += 1;
+                    }else{
+                        if(Rooms[roomId].positive_words[words[i]] == undefined)
+                            Rooms[roomId].positive_words[words[i]] = 0;
+                        Rooms[roomId].positive_words[words[i]] += 1;
+                    }
+                }
+                console.log("PRINTED DATA")
+                console.log(temp)
+            });
         }
     });
 
@@ -186,6 +259,14 @@ io.on('connection', socket => {
         }
     });
 
+    socket.on('feedbackStage', roomId => {
+        if(Rooms[roomId] != undefined){
+            setTimeout(() => {
+                Rooms[roomId].users_ready = 0;
+                io.to(roomId).emit('finishFeedback');
+            }, 5000000);
+        }
+    });
 
     socket.on('doneWithFeedback', (roomId) => {
         if (Rooms[roomId] != undefined) {
@@ -206,6 +287,16 @@ io.on('connection', socket => {
                 console.log("EVERYONE DONE WITH SCOREBOARD");
                 io.to(roomId).emit('scoreboardStageOver');
             }
+        }
+    });
+
+    socket.on('scoreboardStage', roomId => {
+        if (Rooms[roomId] != undefined) {
+            setTimeout(() => {
+                console.log("SCOREBOARD OVER");
+                Rooms[roomId].users_ready = 0;
+                io.to(roomId).emit('scoreboardStageOver');
+            }, 200000);
         }
     });
 
@@ -244,7 +335,9 @@ io.on('connection', socket => {
                 results.push({ name: "", score: 0});
             }
             if (top==3){
-                socket.emit('finalResults', results[0], results[1], results[2]);
+                console.log(Rooms[roomId].positive_words);
+                console.log(Rooms[roomId].negative_words);
+                socket.emit('finalResults', results[0], results[1], results[2], Rooms[roomId].positive_words, Rooms[roomId].negative_words);
             }else {
                 io.to(roomId).emit('results', results.slice(0, 5));
             }
