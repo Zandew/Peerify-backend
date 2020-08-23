@@ -9,6 +9,14 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server);
 
+function roomExists(want_room, room_list) {
+    for(room in room_list) {
+        if(room == want_room)
+            return true;
+    }
+    return false;
+}
+
 io.on('connection', socket => {
 
     socket.emit('createId', makeid(10));
@@ -34,6 +42,9 @@ io.on('connection', socket => {
                 text: null,
                 rating: null
             }],
+            user_nicknames: {
+
+            },
 
             scores: [0]
         }
@@ -44,16 +55,27 @@ io.on('connection', socket => {
         socket.emit('sendRoomId', roomId);
     });
 
+    socket.on('setNickname', (userId, roomId, nickname) => {
+        Rooms[roomId][userId] = nickname;
+    });
+
     socket.on('joinRoom', (userId, roomId) => {
-        Users[userId] = {
-            index: Rooms[roomId].users.length
+        if(!roomExists(roomId, ROoms)){
+            socket.emit('joinStatus', 'FAILED');
+        }else{
+            socket.emit('joinStatus', roomId);
+            Users[userId] = {
+                index: Rooms[roomId].users.length
+            }
+            Rooms[roomId].users.push(userId);
+            Rooms[roomId].user_entries.push(null);
+            Rooms[roomId].user_evaluation.push({text: null, userId });
+            Rooms[roomId].user_feedback.push({ text: null, rating: null });
+            Rooms[roomId].scores.push(0);
+            socket.join(roomId);
+    
+            io.to.emit('playerJoined', Rooms[roomId].user_nicknames[userId]);
         }
-        Rooms[roomId].users.push(userId);
-        Rooms[roomId].user_entries.push(null);
-        Rooms[roomId].user_evaluation.push({text: null, userId });
-        Rooms[roomId].user_feedback.push({ text: null, rating: null });
-        Rooms[roomId].scores.push(0);
-        socket.join(roomId);
     });
 
     socket.on('startGame', (roomId) => { //emitted when leader clicks start game button
