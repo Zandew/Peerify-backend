@@ -128,7 +128,8 @@ io.on('connection', socket => {
         if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
             /*tells everyone that all feedback has been given and to get it using emit('getFeedback', {...}) 
             and total score emit('getScore', {...}), leader replies emit('feedbackStage', roomId)*/
-            io.to(roomId).emit('allEvaluated'); 
+            io.to(roomId).emit('allEvaluated');
+            Rooms[roomId].users_ready = 0;
         }
     });
 
@@ -140,14 +141,24 @@ io.on('connection', socket => {
         io.to(roomId).emit('score', Rooms[roomId].scores[Users[userId].index]);//sends users score
     });
 
+    socket.on('sendReadyNextGame', (userId, roomId) => {
+        Rooms[roomId].users_ready += 1;
+        if (Rooms[roomId].users_ready == Rooms[roomId].users.length) {
+            Rooms[roomId].leader = Rooms[roomId].userList[Math.floor(Math.random() * Rooms[roomId].userList.length)];
+
+            io.to(roomId).emit('allReadyNextGame');
+            io.to(roomId).emit('play', Rooms[roomId].leader);
+            Rooms[roomId].users_ready = 0;
+        }
+    });
+
     socket.on('feedbackStage', roomId => {
         setTimeout(() => {
             Rooms[roomId].rounds_done += 1;
             if (Rooms[roomId].rounds_done == Rooms[roomId].rounds){
                 io.to(roomId).emit('gameOver'); //game over
             }else {
-                Rooms[roomId].leader = Rooms[roomId].userList[Math.floor(Math.random() * Rooms[roomId].userList.length)];
-                io.to(roomId).emit('finishFeedback', Rooms[roomId].leader);//tells everyone round is over and new leader is selected, leader calls emit('promptStage', (roomId))
+                io.to(roomId).emit('finishFeedback');
             }
         }, 5000);
     });
