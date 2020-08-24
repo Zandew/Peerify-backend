@@ -1,1 +1,1 @@
-[Peerify](github.com/zxyil/Peerify)
+[Peerify](https://github.com/zxyil/Peerify)
