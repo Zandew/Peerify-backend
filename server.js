@@ -224,7 +224,7 @@ io.on('connection', socket => {
                 io.to(roomId).emit('allEvaluated');
             }
 
-            const pythonProcess = spawn('python3', ["./main.py", text])
+            const pythonProcess = spawn('python3', ["./ML/main.py", text])
             let words = [], values = [];
             let done_word = false;
             // console.log(pythonProcess);
