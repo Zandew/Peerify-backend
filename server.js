@@ -1,12 +1,20 @@
-const http = require('http');
+const http = require('https');
 const express = require('express');
 const socketio = require('socket.io');
 const { generateKeyPair } = require('crypto');
 const { callbackify } = require('util');
 const { Users, Rooms } = require('./db.js');
 
+const fs = require('fs');
+
+const options = {
+    key: fs.readFileSync('/etc/letsencrypt/live/peerify.live/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/peerify.live/cert.pem'),
+    ca: fs.readFileSync('/etc/letsencrypt/live/peerify.live/chain.pem')
+};
+
 const app = express();
-const server = http.createServer(app);
+const server = http.createServer(options).listen(5000);
 const io = socketio(server);
 
 const spawn = require('child_process').spawn;
@@ -365,7 +373,3 @@ function makeid(length) {
     }
     return result;
 }
-
-const PORT = 5000;
-
-server.listen(PORT);
